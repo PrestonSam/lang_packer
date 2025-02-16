@@ -213,7 +213,7 @@ fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darli
                 }),
             PackerType::Option =>
                 return Ok(quote! {
-                    lang_packer_model::pack_trees::unpack_maybe_one_tree(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())
+                    lang_packer_model::pack_trees::unpack_maybe_one_tree(tree)
                         .map(Self)
                 }),
             PackerType::Vec | PackerType::Box | PackerType::UserType(_) =>

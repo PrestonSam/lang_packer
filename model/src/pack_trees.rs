@@ -201,11 +201,11 @@ where P : TokenPacker
 }
 
 // Used for Option<P>
-pub fn unpack_maybe_one_tree<P>(tree: SyntaxTree<P::Rule>, expected_rule: P::Rule) -> Result<Option<P>, PackingError<P::Rule>>
+pub fn unpack_maybe_one_tree<P>(tree: SyntaxTree<P::Rule>) -> Result<Option<P>, PackingError<P::Rule>>
 where
     P: TokenPacker
 {
-    get_tree_children_with_rule(tree, expected_rule)
+    get_tree_children_with_rule(tree, P::get_rule())
         .and_then(|maybe_children|
             match maybe_children {
                 Some(children) =>
