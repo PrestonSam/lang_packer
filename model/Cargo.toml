@@ -1,0 +1,11 @@
+[package]
+name = "token_packer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+
+[dependencies]
+chrono = "0.4.38"
+itertools = "0.13.0"
+pest = "2.7.14"
