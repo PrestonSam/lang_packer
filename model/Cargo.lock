@@ -112,6 +112,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lang_packer_model"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "itertools",
+ "pest",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.161"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -208,15 +217,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "token_packer"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "itertools",
- "pest",
 ]
 
 [[package]]

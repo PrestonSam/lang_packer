@@ -182,12 +182,21 @@ dependencies = [
  "chrono",
  "darling",
  "itertools",
+ "lang_packer_model",
  "pest",
  "proc-macro2",
  "quote",
  "rand",
  "syn",
- "token_packer",
+]
+
+[[package]]
+name = "lang_packer_model"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "itertools",
+ "pest",
 ]
 
 [[package]]
@@ -332,15 +341,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "token_packer"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "itertools",
- "pest",
 ]
 
 [[package]]

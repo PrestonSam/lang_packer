@@ -1,5 +1,5 @@
 [package]
-name = "token_packer"
+name = "lang_packer_model"
 version = "0.1.0"
 edition = "2021"
 
@@ -9,3 +9,4 @@ edition = "2021"
 chrono = "0.4.38"
 itertools = "0.13.0"
 pest = "2.7.14"
+

@@ -144,10 +144,10 @@ where
         .map_err(PackingError::new)
 }
 
-pub fn get_vec_of_packer<'a, I, P, R: RuleType>(trees: &mut I) -> Result<Vec<P>, PackingError<R>>
+pub fn get_vec_of_packer<'a, I, P>(trees: &mut I) -> Result<Vec<P>, PackingError<P::Rule>>
 where
-    I: Iterator<Item = SyntaxTree<'a, R>>,
-    P: TokenPacker<Rule = R>,
+    I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
+    P: TokenPacker,
 {
     trees.peekable()
         .peeking_take_while(P::is_packable)
@@ -155,10 +155,10 @@ where
         .collect()
 }
 
-pub fn maybe_pack_next_tree<'a, I, P, R: RuleType>(trees: &mut I) -> Result<Option<P>, PackingError<R>>
+pub fn maybe_pack_next_tree<'a, I, P>(trees: &mut I) -> Result<Option<P>, PackingError<P::Rule>>
 where
-    I: Iterator<Item = SyntaxTree<'a, R>>,
-    P: TokenPacker<Rule = R>,
+    I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
+    P: TokenPacker,
 {
     trees.peekable()
         .peeking_next(P::is_packable)
@@ -167,10 +167,10 @@ where
 }
 
 // Used for (P, ..)
-pub fn pack_next_tree<'a, I, P, R: RuleType>(trees: &mut I) -> Result<P, PackingError<R>>
+pub fn pack_next_tree<'a, I, P>(trees: &mut I) -> Result<P, PackingError<P::Rule>>
 where
-    I: Iterator<Item = SyntaxTree<'a, R>>,
-    P: TokenPacker<Rule = R>,
+    I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
+    P: TokenPacker,
 {
     trees.next()
         .ok_or_else(|| PackingError::new(PackingErrorVariant::ExpectedChildWithRule { expected_rule: P::get_rule() }))
@@ -201,10 +201,9 @@ where P : TokenPacker
 }
 
 // Used for Option<P>
-pub fn unpack_maybe_one_tree<P, R>(tree: SyntaxTree<R>, expected_rule: P::Rule) -> Result<Option<P>, PackingError<R>>
+pub fn unpack_maybe_one_tree<P>(tree: SyntaxTree<P::Rule>, expected_rule: P::Rule) -> Result<Option<P>, PackingError<P::Rule>>
 where
-    R: RuleType,
-    P: TokenPacker<Rule = R>
+    P: TokenPacker
 {
     get_tree_children_with_rule(tree, expected_rule)
         .and_then(|maybe_children|

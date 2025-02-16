@@ -127,13 +127,13 @@ fn expand_enum(structure: PackEnumNewtype) -> Result<TokenStream2, darling::Erro
             let packer = try_match!(packer, PackerType::UserType(user_type) => user_type).expect("Should've been user type");
 
             quote! {
-                <#packer as token_packer::pack_trees::HasRule>::get_rule(),
+                <#packer as lang_packer_model::pack_trees::HasRule>::get_rule(),
             }
         })
         .collect_vec();
 
     let output = quote! {
-        match token_packer::pack_trees::get_only_tree_child(tree, <Self as token_packer::pack_trees::HasRule>::get_rule())? {
+        match lang_packer_model::pack_trees::get_only_tree_child(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())? {
             #(#match_arms)*
             
             t => {
@@ -141,7 +141,7 @@ fn expand_enum(structure: PackEnumNewtype) -> Result<TokenStream2, darling::Erro
                     #(#expected_rules)*
                 ];
 
-                Err(token_packer::pack_trees::make_wrong_rules_alt_error(t, expected_rules))
+                Err(lang_packer_model::pack_trees::make_wrong_rules_alt_error(t, expected_rules))
             }
         }
     };
@@ -151,7 +151,7 @@ fn expand_enum(structure: PackEnumNewtype) -> Result<TokenStream2, darling::Erro
 
 fn expand_unit_struct() -> Result<TokenStream2, darling::Error> {
     let output = quote! {
-        token_packer::pack_trees::get_tree_src_string(tree, <Self as token_packer::pack_trees::HasRule>::get_rule())?;
+        lang_packer_model::pack_trees::get_tree_src_string(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())?;
 
         Ok(Self)
     };
@@ -162,28 +162,28 @@ fn expand_unit_struct() -> Result<TokenStream2, darling::Error> {
 fn handle_packer_type(packer_type: PackerType) -> Result<TokenStream2, darling::Error> {
     let tokens = match packer_type {
         PackerType::Vec => quote! {
-            token_packer::pack_trees::get_vec_of_packer(&mut iter)
+            lang_packer_model::pack_trees::get_vec_of_packer(&mut iter)
         },
         PackerType::Usize => quote! {
-            token_packer::pack_trees::get_next_tree(&mut iter)
-                .and_then(token_packer::pack_trees::get_usize_from_tree)
+            lang_packer_model::pack_trees::get_next_tree(&mut iter)
+                .and_then(lang_packer_model::pack_trees::get_usize_from_tree)
         },
         PackerType::String => quote! {
-            token_packer::pack_trees::get_next_tree(&mut iter)
-                .and_then(token_packer::pack_trees::get_string_from_tree)
+            lang_packer_model::pack_trees::get_next_tree(&mut iter)
+                .and_then(lang_packer_model::pack_trees::get_string_from_tree)
         },
         PackerType::NaiveTime => quote! {
-            token_packer::pack_trees::get_next_tree(&mut iter)
-                .and_then(token_packer::pack_trees::get_naive_time_from_tree)
+            lang_packer_model::pack_trees::get_next_tree(&mut iter)
+                .and_then(lang_packer_model::pack_trees::get_naive_time_from_tree)
         },
         PackerType::Option => quote! {
-            token_packer::pack_trees::maybe_pack_next_tree(&mut iter)
+            lang_packer_model::pack_trees::maybe_pack_next_tree(&mut iter)
         },
         PackerType::Box => quote! {
-            token_packer::pack_trees::pack_next_tree(&mut iter).map(Box::new)
+            lang_packer_model::pack_trees::pack_next_tree(&mut iter).map(Box::new)
         },
         PackerType::UserType(_) => quote! {
-            token_packer::pack_trees::pack_next_tree(&mut iter)
+            lang_packer_model::pack_trees::pack_next_tree(&mut iter)
         }
     };
 
@@ -198,22 +198,22 @@ fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darli
         match types[0] {
             PackerType::NaiveTime =>
                 return Ok(quote! {
-                    token_packer::pack_trees::get_naive_time_from_tree(tree)
+                    lang_packer_model::pack_trees::get_naive_time_from_tree(tree)
                         .map(Self)
                 }),
             PackerType::Usize =>
                 return Ok(quote! {
-                    token_packer::pack_trees::get_usize_from_tree(tree)
+                    lang_packer_model::pack_trees::get_usize_from_tree(tree)
                         .map(Self)
                 }),
             PackerType::String =>
                 return Ok(quote! {
-                    token_packer::pack_trees::get_string_from_tree(tree)
+                    lang_packer_model::pack_trees::get_string_from_tree(tree)
                         .map(Self)
                 }),
             PackerType::Option =>
                 return Ok(quote! {
-                    token_packer::pack_trees::unpack_maybe_one_tree(tree, <Self as token_packer::pack_trees::HasRule>::get_rule())
+                    lang_packer_model::pack_trees::unpack_maybe_one_tree(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())
                         .map(Self)
                 }),
             PackerType::Vec | PackerType::Box | PackerType::UserType(_) =>
@@ -231,11 +231,11 @@ fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darli
         .collect::<Result<Vec<_>, _>>()?;
 
     let output = quote! {
-        let mut iter = token_packer::pack_trees::get_tree_children(tree, <Self as token_packer::pack_trees::HasRule>::get_rule())?.into_iter();
+        let mut iter = lang_packer_model::pack_trees::get_tree_children(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())?.into_iter();
 
         #(let #tree_idents = #packers?;)*
 
-        token_packer::pack_trees::ensure_no_more_trees(iter)?;
+        lang_packer_model::pack_trees::ensure_no_more_trees(iter)?;
 
         Ok(Self(#(#tree_idents),*))
     };
@@ -264,7 +264,7 @@ fn expand_data_structure(input: DarlingRuleAttr) -> Result<TokenStream2, darling
     }?;
 
     let output = quote! {
-        impl token_packer::pack_trees::HasRule for #struct_ident {
+        impl lang_packer_model::pack_trees::HasRule for #struct_ident {
             type Rule = #rule_type;
 
             fn get_rule() -> Self::Rule {
@@ -272,10 +272,10 @@ fn expand_data_structure(input: DarlingRuleAttr) -> Result<TokenStream2, darling
             }
         }
 
-        impl token_packer::pack_trees::TokenPacker for #struct_ident {
+        impl lang_packer_model::pack_trees::TokenPacker for #struct_ident {
             fn pack_impl(
-                tree: token_packer::generic_utils::SyntaxTree<Self::Rule>
-            ) -> Result<Self, token_packer::generic_utils::PackingError<Self::Rule>> {
+                tree: lang_packer_model::generic_utils::SyntaxTree<Self::Rule>
+            ) -> Result<Self, lang_packer_model::generic_utils::PackingError<Self::Rule>> {
                 #pack_body
             }
         }
