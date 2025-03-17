@@ -92,9 +92,13 @@ where
 
         let mut indentation = 4;
 
-        for context in self.context.iter() {
-            f.write_fmt(format_args!("{}{context}\n", " ".repeat(indentation)))?;
-            indentation += 2;
+        if 0 < self.context.len() {
+            for context in self.context.iter() {
+                f.write_fmt(format_args!("{}{context}\n", " ".repeat(indentation)))?;
+                indentation += 2;
+            }
+        } else {
+            f.write_str("<No context>")?;
         }
 
         Ok(())

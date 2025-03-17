@@ -105,7 +105,7 @@ impl Into<PackDataStructure> for darling::ast::Data<DarlingEnumVariant, DarlingT
     }
 }
 
-fn expand_enum(structure: PackEnumNewtype) -> Result<TokenStream2, darling::Error> {
+fn expand_enum(structure: PackEnumNewtype, debug: bool) -> Result<TokenStream2, darling::Error> {
     let PackEnumNewtype(pairs) = structure;
 
     let match_arms = pairs.iter()
@@ -149,17 +149,27 @@ fn expand_enum(structure: PackEnumNewtype) -> Result<TokenStream2, darling::Erro
     Ok(output)
 }
 
-fn expand_unit_struct() -> Result<TokenStream2, darling::Error> {
-    let output = quote! {
+fn expand_unit_struct(debug: bool) -> Result<TokenStream2, darling::Error> {
+    let maybe_debug_line = if debug {
+        quote! { println!("Attempting to expand unit struct with rule: {}", <Self as lang_packer_model::pack_trees::HasRule>::get_rule()); }
+    } else { quote! { } };
+
+    let packer = quote! {
         lang_packer_model::pack_trees::get_tree_src_string(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())?;
 
         Ok(Self)
     };
 
-    Ok(output)
+    Ok(quote!{ { #maybe_debug_line #packer } })
 }
 
-fn handle_packer_type(packer_type: PackerType) -> Result<TokenStream2, darling::Error> {
+fn handle_packer_type(packer_type: PackerType, debug: bool) -> Result<TokenStream2, darling::Error> {
+    let maybe_debug_line = if debug {
+        let str = format!("Packing using type of: {packer_type:?}");
+
+        quote! { println!("{}", #str); }
+    } else { quote! { } };
+
     let tokens = match packer_type {
         PackerType::Vec => quote! {
             lang_packer_model::pack_trees::get_vec_of_packer(&mut iter)
@@ -187,11 +197,16 @@ fn handle_packer_type(packer_type: PackerType) -> Result<TokenStream2, darling::
         }
     };
 
-    Ok(tokens)
+    Ok(quote! { { #maybe_debug_line #tokens } })
 }
 
-fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darling::Error> {
+fn expand_tuple_struct(structure: PackTupleStruct, debug: bool) -> Result<TokenStream2, darling::Error> {
     let PackTupleStruct(types) = structure;
+
+    let maybe_debug_line = if debug {
+        let str = format!("{:?}", types);
+        quote! { println!("{}", #str); }
+    } else { quote! { } };
 
     // Deplorable hacky workaround for primitives having no children
     if types.len() == 1 {
@@ -227,7 +242,7 @@ fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darli
         .collect::<Vec<_>>();
 
     let packers = types.into_iter()
-        .map(handle_packer_type)
+        .map(|p| handle_packer_type(p, debug))
         .collect::<Result<Vec<_>, _>>()?;
 
     let output = quote! {
@@ -240,10 +255,10 @@ fn expand_tuple_struct(structure: PackTupleStruct) -> Result<TokenStream2, darli
         Ok(Self(#(#tree_idents),*))
     };
 
-    Ok(output)
+    Ok(quote!{ { #maybe_debug_line #output } })
 }
 
-fn expand_data_structure(input: DarlingRuleAttr) -> Result<TokenStream2, darling::Error> {
+fn expand_data_structure(input: DarlingRuleAttr, debug: bool /* TODO this isn't good practice */) -> Result<TokenStream2, darling::Error> {
     let struct_ident = input.ident;
 
     let (rule_type, rule_variant) = input.rule.segments.into_iter()
@@ -254,13 +269,13 @@ fn expand_data_structure(input: DarlingRuleAttr) -> Result<TokenStream2, darling
 
     let pack_body = match input.data.into() {
         PackDataStructure::Enum(ds) =>
-            expand_enum(ds),
+            expand_enum(ds, debug),
 
         PackDataStructure::UnitStruct =>
-            expand_unit_struct(),
+            expand_unit_struct(debug),
 
         PackDataStructure::TupleStruct(ds) =>
-            expand_tuple_struct(ds),
+            expand_tuple_struct(ds, debug),
     }?;
 
     let output = quote! {
@@ -289,7 +304,17 @@ pub fn derive_packer(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
 
     FromDeriveInput::from_derive_input(&input)
-        .and_then(expand_data_structure)
+        .and_then(|attr| expand_data_structure(attr, false))
+        .map(Into::into)
+        .unwrap_or_else(|e| e.write_errors().into())
+}
+
+#[proc_macro_derive(DbgPacker, attributes(packer))]
+pub fn derive_dbg_packer(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+
+    FromDeriveInput::from_derive_input(&input)
+        .and_then(|attr| expand_data_structure(attr, true))
         .map(Into::into)
         .unwrap_or_else(|e| e.write_errors().into())
 }
