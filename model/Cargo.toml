@@ -9,4 +9,5 @@ edition = "2021"
 chrono = "0.4.38"
 itertools = "0.13.0"
 pest = "2.7.14"
+thiserror = "2.0.12"
 

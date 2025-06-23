@@ -1,3 +1,5 @@
+use thiserror::Error;
+
 use std::{fmt::{Debug, Display}, num::ParseIntError, ops::Not};
 use itertools::Itertools;
 use pest::{iterators::Pair, RuleType, Span};
@@ -51,7 +53,7 @@ impl<R: RuleType> Display for PackingErrorContext<R> {
     }
 }
 
-#[derive(Debug) ]
+#[derive(Error, Debug) ]
 pub struct PackingError<R>
 where
     R: RuleType
@@ -87,18 +89,28 @@ where
     R: RuleType
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("PACKING ERROR\n")?;
-        f.write_fmt(format_args!("  {}\n", self.error))?;
+        f.write_str("Packing error:\n")?;
 
-        let mut indentation = 4;
+        let mut rules = self.context.iter()
+            .rev()
+            .filter_map(|c| match c {
+                PackingErrorContext::Rule(r) => Some(format!("{r:?}")),
+                PackingErrorContext::Src(_) => None,
+            });
+        let mut providences = self.context.iter().filter_map(|c| match c {
+            PackingErrorContext::Src(src) => Some(src.to_owned()),
+            PackingErrorContext::Rule(_) => None,
+        });
 
-        if 0 < self.context.len() {
-            for context in self.context.iter() {
-                f.write_fmt(format_args!("{}{context}\n", " ".repeat(indentation)))?;
-                indentation += 2;
+        f.write_fmt(format_args!("  At: {}\n", rules.join(" > ")))?;
+        f.write_fmt(format_args!("  Error: {}\n", self.error))?;
+
+        if let Some(self_providence) = providences.next() {
+            f.write_fmt(format_args!("<Error source>\n{self_providence}\n</Error source>\n"))?;
+
+            if let Some(parent_providence) = providences.next() {
+                f.write_fmt(format_args!("<Parent source>\n{parent_providence}\n</Parent source>\n"))?;
             }
-        } else {
-            f.write_str("<No context>")?;
         }
 
         Ok(())
@@ -115,6 +127,12 @@ pub struct SyntaxTree<'a, R: RuleType> {
     pub rule: R,
     pub providence: Providence<'a>,
     pub children: Option<Vec<SyntaxTree<'a, R>>>,
+}
+
+impl<R: RuleType> SyntaxTree<'_, R> {
+    pub fn dbg_direct_descendents(&self) -> String {
+        self.children.iter().flatten().map(|c| format!("{:?}", c.rule)).join(", ")
+    }
 }
 
 impl<'a, R: RuleType> SyntaxTree<'a, R> {
@@ -167,9 +185,23 @@ impl<'a, R: RuleType> Debug for SyntaxTree<'a, R>
 #[derive(Debug)]
 pub struct RuleAndProvidence<R: RuleType>(pub R, pub String);
 
+const MAX_LENGTH: usize = 32;
+
 impl<R: RuleType> Display for RuleAndProvidence<R> {
+
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("{:?}({})", self.0, self.1))
+        f.write_fmt(format_args!("{:?}", self.0))?;
+
+        if self.1.chars().count() < MAX_LENGTH {
+            f.write_str(&self.1)
+        } else {
+            let providence = self.1.chars()
+                .take(MAX_LENGTH)
+                .chain("...".chars())
+                .collect::<String>();
+
+            f.write_fmt(format_args!("({:?})", providence))
+        }
     }
 }
 
@@ -181,7 +213,7 @@ pub enum PackingErrorVariant<R: RuleType> {
     ExpectedChild,
     ExpectedExactlyOneChild { found_child_count: usize },
     NoChildrenFound,
-    TooManyChildren { found_child_count: usize },
+    TooManyChildren { found_child_count: usize, found_rules: Vec<R> },
     ParseUsizeError { inner: ParseIntError, src: String },
     ParseTimeError(chrono::ParseError),
 }
@@ -240,9 +272,9 @@ impl<R: RuleType> Display for PackingErrorVariant<R> {
                 f.write_str("Expected children but found none"),
             
             // TODO this is not very informative. How many children were expected?
-            PackingErrorVariant::TooManyChildren { found_child_count } => {
+            PackingErrorVariant::TooManyChildren { found_child_count, found_rules } => {
                 f.write_str("Expected fewer children")?;
-                f.write_fmt(format_args!("  Found {found_child_count} children\n"))
+                f.write_fmt(format_args!("  Found {found_child_count} spare children: {found_rules:?}\n"))
             }
         }
     }

@@ -16,4 +16,5 @@ quote = "1.0.37"
 rand = "0.8.5"
 syn = "2.0.77"
 lang_packer_model = { path = "./model" }
+thiserror = "2.0.12"
 

@@ -151,7 +151,7 @@ fn expand_enum(structure: PackEnumNewtype, debug: bool) -> Result<TokenStream2, 
 
 fn expand_unit_struct(debug: bool) -> Result<TokenStream2, darling::Error> {
     let maybe_debug_line = if debug {
-        quote! { println!("Attempting to expand unit struct with rule: {}", <Self as lang_packer_model::pack_trees::HasRule>::get_rule()); }
+        quote! { println!("expand_unit_struct({})", <Self as lang_packer_model::pack_trees::HasRule>::get_rule()); }
     } else { quote! { } };
 
     let packer = quote! {
@@ -163,11 +163,11 @@ fn expand_unit_struct(debug: bool) -> Result<TokenStream2, darling::Error> {
     Ok(quote!{ { #maybe_debug_line #packer } })
 }
 
-fn handle_packer_type(packer_type: PackerType, debug: bool) -> Result<TokenStream2, darling::Error> {
+fn get_packer_snippet(packer_type: PackerType, debug: bool) -> Result<TokenStream2, darling::Error> {
     let maybe_debug_line = if debug {
-        let str = format!("Packing using type of: {packer_type:?}");
+        let str = format!("{packer_type:?}");
 
-        quote! { println!("{}", #str); }
+        quote! { println!("get_packer_snippet({})", #str); }
     } else { quote! { } };
 
     let tokens = match packer_type {
@@ -205,7 +205,7 @@ fn expand_tuple_struct(structure: PackTupleStruct, debug: bool) -> Result<TokenS
 
     let maybe_debug_line = if debug {
         let str = format!("{:?}", types);
-        quote! { println!("{}", #str); }
+        quote! { println!("expand_tuple_struct({})", #str); }
     } else { quote! { } };
 
     // Deplorable hacky workaround for primitives having no children
@@ -242,11 +242,13 @@ fn expand_tuple_struct(structure: PackTupleStruct, debug: bool) -> Result<TokenS
         .collect::<Vec<_>>();
 
     let packers = types.into_iter()
-        .map(|p| handle_packer_type(p, debug))
+        .map(|p| get_packer_snippet(p, debug))
         .collect::<Result<Vec<_>, _>>()?;
 
     let output = quote! {
-        let mut iter = lang_packer_model::pack_trees::get_tree_children(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())?.into_iter();
+        let mut iter = lang_packer_model::pack_trees::get_tree_children(tree, <Self as lang_packer_model::pack_trees::HasRule>::get_rule())?
+            .into_iter()
+            .peekable();
 
         #(let #tree_idents = #packers?;)*
 

@@ -3,7 +3,7 @@
 ///////////////////////////////
 
 
-use std::marker::PhantomData;
+use std::{iter::Peekable, marker::PhantomData};
 
 use chrono::NaiveTime;
 use itertools::{Itertools, PeekingNext};
@@ -118,7 +118,7 @@ impl<R: RuleType> PackWrap<R> {
             .collect()
     }
 
-    pub fn maybe_pack_next_tree<'a, I, P>(trees: &mut I) -> Result<Option<P>, PackingError<P::Rule>>
+    pub fn maybe_pack_next_tree<'a, I, P>(trees: &mut Peekable<I>) -> Result<Option<P>, PackingError<P::Rule>>
     where
         I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
         P: TokenPacker,
@@ -141,15 +141,24 @@ impl<R: RuleType> PackWrap<R> {
     }
 
     // Used for (P, ..)
-    pub fn ensure_no_more_trees<'a, I>(trees: I) -> Result<(), PackingError<R>>
+    pub fn ensure_no_more_trees<'a, I>(mut trees: I) -> Result<(), PackingError<R>>
     where
         I: Iterator<Item = SyntaxTree<'a, R>>
     {
-        match trees.count() {
-            0 =>
+        match trees.next() {
+            None =>
                 Ok(()),
-            count =>
-                Err(PackingError::new(PackingErrorVariant::TooManyChildren { found_child_count: count })),
+            Some(fst) => {
+                let rules = std::iter::once(fst)
+                    .chain(trees)
+                    .map(|t| t.rule)
+                    .collect_vec();
+
+                Err(PackingError::new(PackingErrorVariant::TooManyChildren {
+                    found_child_count: rules.len(),
+                    found_rules: rules
+                }))
+            },
         }
     }
 

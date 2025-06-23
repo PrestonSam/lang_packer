@@ -1,3 +1,5 @@
+use std::iter::Peekable;
+
 use chrono::NaiveTime;
 use itertools::{Itertools, PeekingNext};
 use pest::RuleType;
@@ -22,8 +24,13 @@ where
     }
 
     fn pack(tree: SyntaxTree<'_, Self::Rule>) -> Result<Self, PackingError<Self::Rule>> {
+        // TODO this is killing all the optimisations made by using &str instead of String.
+        // However it gets better debug information, so it's worthwhile for the time being.
+        let providence = tree.providence.clone();
+
         Self::pack_impl(tree)
             .with_rule(Self::get_rule())
+            .with_providence(&providence)
     }
 
     fn pack_impl(tree: SyntaxTree<'_, Self::Rule>) -> Result<Self, PackingError<Self::Rule>>;
@@ -135,6 +142,7 @@ pub fn get_tree_children<R: RuleType>(tree: SyntaxTree<R>, expected_rule: R) -> 
         .and_then(expect_trees)
 }
 
+// Used for (P, ..)
 pub fn get_next_tree<'a, I, R: RuleType>(trees: &mut I) -> Result<SyntaxTree<'a, R>, PackingError<R>>
 where
     I: Iterator<Item = SyntaxTree<'a, R>>,
@@ -144,6 +152,7 @@ where
         .map_err(PackingError::new)
 }
 
+// Used for (P, ..) collected as Vec<P>
 pub fn get_vec_of_packer<'a, I, P>(trees: &mut I) -> Result<Vec<P>, PackingError<P::Rule>>
 where
     I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
@@ -155,13 +164,13 @@ where
         .collect()
 }
 
-pub fn maybe_pack_next_tree<'a, I, P>(trees: &mut I) -> Result<Option<P>, PackingError<P::Rule>>
+// Used for (Option<P>, ..)
+pub fn maybe_pack_next_tree<'a, I, P>(trees: &mut Peekable<I>) -> Result<Option<P>, PackingError<P::Rule>>
 where
     I: Iterator<Item = SyntaxTree<'a, P::Rule>>,
     P: TokenPacker,
 {
-    trees.peekable()
-        .peeking_next(P::is_packable)
+    trees.peeking_next(P::is_packable)
         .map(P::pack)
         .transpose()
 }
@@ -178,15 +187,23 @@ where
 }
 
 // Used for (P, ..)
-pub fn ensure_no_more_trees<'a, I, R: RuleType>(trees: I) -> Result<(), PackingError<R>>
+pub fn ensure_no_more_trees<'a, I, R: RuleType>(mut trees: I) -> Result<(), PackingError<R>>
 where
     I: Iterator<Item = SyntaxTree<'a, R>>
 {
-    match trees.count() {
-        0 =>
+    match trees.next() {
+        None =>
             Ok(()),
-        count =>
-            Err(PackingError::new(PackingErrorVariant::TooManyChildren { found_child_count: count })),
+        Some(fst) => {
+            let rules = std::iter::once(fst.rule)
+                .chain(trees.map(|t| t.rule))
+                .collect_vec();
+
+            Err(PackingError::new(PackingErrorVariant::TooManyChildren {
+                found_child_count: rules.len(),
+                found_rules: rules
+            })).with_providence(&fst.providence)
+        },
     }
 }
 
@@ -206,7 +223,7 @@ where
     P: TokenPacker
 {
     get_tree_children_with_rule(tree, P::get_rule())
-        .and_then(|maybe_children|
+        .and_then(|maybe_children| {
             match maybe_children {
                 Some(children) =>
                     unpack_only_tree(children)
@@ -215,5 +232,5 @@ where
 
                 None =>
                     Ok(None),
-            })
+            }})
 }
