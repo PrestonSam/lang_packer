@@ -27,10 +27,12 @@ where
         // TODO this is killing all the optimisations made by using &str instead of String.
         // However it gets better debug information, so it's worthwhile for the time being.
         let providence = tree.providence.clone();
+        let child_tokens = tree.dbg_direct_descendents();
 
         Self::pack_impl(tree)
             .with_rule(Self::get_rule())
             .with_providence(&providence)
+            .with_sibling_tokens(child_tokens)
     }
 
     fn pack_impl(tree: SyntaxTree<'_, Self::Rule>) -> Result<Self, PackingError<Self::Rule>>;

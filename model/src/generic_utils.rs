@@ -60,6 +60,7 @@ where
 {
     error: PackingErrorVariant<R>,
     context: Vec<PackingErrorContext<R>>,
+    sibling_tokens: SiblingTokens,
 }
 
 impl<R> PackingError<R>
@@ -70,6 +71,7 @@ where
         PackingError {
             error,
             context: vec![],
+            sibling_tokens: SiblingTokens::Unset,
         }
     }
 
@@ -80,6 +82,15 @@ where
 
     pub fn with_providence(mut self, providence: &Providence<'_>) -> Self {
         self.context.push(PackingErrorContext::Src(providence.src.to_string()));
+        self
+    }
+
+    pub fn with_sibling_tokens(mut self, siblings: String) -> Self {
+        self.sibling_tokens = match self.sibling_tokens {
+            SiblingTokens::Unset => SiblingTokens::Child,
+            SiblingTokens::Child => SiblingTokens::Parent(siblings),
+            p @ SiblingTokens::Parent(_) => p,
+        };
         self
     }
 }
@@ -105,6 +116,8 @@ where
         f.write_fmt(format_args!("  At: {}\n", rules.join(" > ")))?;
         f.write_fmt(format_args!("  Error: {}\n", self.error))?;
 
+        f.write_fmt(format_args!("  Siblings: {}\n", self.sibling_tokens))?;
+
         if let Some(self_providence) = providences.next() {
             f.write_fmt(format_args!("<Error source>\n{self_providence}\n</Error source>\n"))?;
 
@@ -112,6 +125,7 @@ where
                 f.write_fmt(format_args!("<Parent source>\n{parent_providence}\n</Parent source>\n"))?;
             }
         }
+
 
         Ok(())
     }
@@ -131,7 +145,13 @@ pub struct SyntaxTree<'a, R: RuleType> {
 
 impl<R: RuleType> SyntaxTree<'_, R> {
     pub fn dbg_direct_descendents(&self) -> String {
-        self.children.iter().flatten().map(|c| format!("{:?}", c.rule)).join(", ")
+        match &self.children {
+            Some(siblings) =>
+                siblings.iter()
+                    .map(|c| format!("{:?}", c.rule))
+                    .join(", "),
+            None => "<No tokens>".into(),
+        }
     }
 }
 
@@ -202,6 +222,25 @@ impl<R: RuleType> Display for RuleAndProvidence<R> {
 
             f.write_fmt(format_args!("({:?})", providence))
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum SiblingTokens {
+    Unset,
+    Child,
+    Parent(String),
+}
+
+impl std::fmt::Display for SiblingTokens {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            SiblingTokens::Unset => "<PestPacker Error! No siblings set>",
+            SiblingTokens::Child => "<No siblings>",
+            SiblingTokens::Parent(str) => str,
+        };
+
+        f.write_str(str)
     }
 }
 
@@ -285,6 +324,8 @@ pub trait PackingResult<R: RuleType> {
     fn with_rule(self, rule: R) -> Self;
 
     fn with_providence(self, providence: &Providence<'_>) -> Self;
+
+    fn with_sibling_tokens(self, siblings: String) -> Self;
 }
 
 impl<T, R: RuleType> PackingResult<R> for Result<T, PackingError<R>> {
@@ -294,5 +335,9 @@ impl<T, R: RuleType> PackingResult<R> for Result<T, PackingError<R>> {
 
     fn with_providence(self, providence: &Providence<'_>) -> Self {
         self.map_err(|err| err.with_providence(providence))
+    }
+
+    fn with_sibling_tokens(self, siblings: String) -> Self {
+        self.map_err(|err| err.with_sibling_tokens(siblings))
     }
 }
